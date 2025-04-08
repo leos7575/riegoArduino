@@ -1,40 +1,71 @@
+/**
+ * Controlador de Riego Automático con ESP32 y API REST
+ * 
+ * Este código controla dos válvulas de riego basado en configuraciones obtenidas de una API REST.
+ * Utiliza un RTC (DS3231) para validar horarios y fechas de riego programados.
+ * 
+ * Características principales:
+ * - Conexión WiFi para comunicación con API
+ * - Consulta periódica de estado de válvulas
+ * - Ejecución de ciclos de riego con soporte para pausas
+ * - Sincronización horaria con RTC
+ * - Manejo de fechas y horarios en formato 12h/24h
+ * - Actualización remota de estados y parámetros de riego
+ * 
+ * Componentes requeridos:
+ * - ESP32
+ * - Módulo RTC DS3231
+ * - Válvulas de riego (actuadores)
+ * - Conexión WiFi
+ */
+
+// Bibliotecas
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
 #include <Wire.h>
 #include <RTClib.h>
 
+// Configuración WiFi
 const char* ssid = "WIFI UTC EdificioH";
 const char* password = "utcalvillo";
 
+// Identificadores y URLs API
 String idValvula1 = "67bb6f2e85118d10af317f79";  // ID para la válvula 1
 String idValvula2 = "67bb79ac1c82e9d42d445882";  // ID para la válvula 2
 
+// URLs para válvula 1
 String urlEstado1 = "https://apiriego.onrender.com/estado/" + idValvula1;
 String urlConfig1 = "https://apiriego.onrender.com/config1/" + idValvula1;
 String urlActualizarEstado1 = "https://apiriego.onrender.com/actualizarEstadoFalse/" + idValvula1;
 
+// URLs para válvula 2
+String urlEstado2 = "https://apiriego.onrender.com/estado/" + idValvula2;
 String urlEstado2 = "https://apiriego.onrender.com/estado/" + idValvula2;
 String urlConfig2 = "https://apiriego.onrender.com/config1/" + idValvula2;
 String urlActualizarEstado2 = "https://apiriego.onrender.com/actualizarEstadoFalse/" + idValvula2;
+
 // Nueva URL para restar la pausa
 String urlRestarPausa1 = "https://apiriego.onrender.com/restarPausa/" + idValvula1;
 String urlRestarPausa2 = "https://apiriego.onrender.com/restarPausa/" + idValvula2;
 String urlDuracionPausa1 = "https://apiriego.onrender.com/duracionPausa/" + idValvula1;
 String urlDuracionPausa2 = "https://apiriego.onrender.com/duracionPausa/" + idValvula2;
 
+// Urls para agregar pausas y su duracion
 String urlAgregarPausa1 = "https://apiriego.onrender.com/pausasHis/" + idValvula1;
 String urlAgregarPausa2 = "https://apiriego.onrender.com/pausasHis/" + idValvula2;
 String urlAgregarDuracionPausa1 = "https://apiriego.onrender.com/duracionPausaHis/" + idValvula1;
 String urlAgregarDuracionPausa2 = "https://apiriego.onrender.com/duracionPausaHis/" + idValvula2;
 
 
-
+// Pines para las valvulas
 const int pinValvula1 = 27;
 const int pinValvula2 = 26;
 
+// Definicion del modulo RTC
 RTC_DS3231 rtc;
 
+// Variables de estado y configuración
 bool estadoRiego1, estadoRiego2;
 String diasRiego1, diasRiego2;
 int duracion1, duracion2;
@@ -45,6 +76,7 @@ int pausas1, pausas2;
 bool isRiego1Activo = false;
 bool isRiego2Activo = false;
 
+// Variables de control de tiempo
 unsigned long tiempoAnterior1 = 0; // Variable para almacenar el último tiempo válvula 1
 unsigned long tiempoPausa1 = 0; // Variable para controlar el tiempo de pausa válvula 1
 int actoRiego1 = 0; // Variable para saber en qué parte del riego estamos válvula 1
@@ -53,22 +85,28 @@ unsigned long tiempoAnterior2 = 0; // Variable para almacenar el último tiempo 
 unsigned long tiempoPausa2 = 0; // Variable para controlar el tiempo de pausa válvula 2
 int actoRiego2 = 0; // Variable para saber en qué parte del riego estamos válvula 2
 
+/**
+ * Configuración inicial
+ */
 void setup() {
   Serial.begin(115200);
   WiFi.begin(ssid, password);
   Wire.begin();
 
+// Configurar pines como salidas
   pinMode(pinValvula1, OUTPUT);
   pinMode(pinValvula2, OUTPUT);
   digitalWrite(pinValvula1, LOW);
   digitalWrite(pinValvula2, LOW);
 
+ // Esperar conexión WiFi
   while (WiFi.status() != WL_CONNECTED) {
     delay(1000);
     Serial.println("Conectando a WiFi...");
   }
   Serial.println("Conectado a WiFi.");
 
+// Inicializar RTC
   if (!rtc.begin()) {
     Serial.println("Error: No se encontró el módulo RTC");
     while (1);
@@ -153,7 +191,7 @@ void loop() {
 
   delay(5000);
 }
-
+// Funcion para obtener la configuracion que se les dara a las valvulas
 void obtenerConfiguracion(int valvula) {
   HTTPClient http;
   String urlConfig;
@@ -199,6 +237,7 @@ void obtenerConfiguracion(int valvula) {
   http.end();
 }
 
+// Funcion para validar si se debera ejecutar los riegos o no
 bool validarRiego(int valvula) {
   // Si el riego ya se ha activado para esta válvula, no lo validamos nuevamente
   if ((valvula == 1 && isRiego1Activo) || (valvula == 2 && isRiego2Activo)) {
@@ -244,7 +283,7 @@ bool validarRiego(int valvula) {
   return false;
 }
 
-
+// Funcion para ejecutar los riegos con los datos de sus configuraciones respectivas
 void ejecutarRiego(int valvula) {
   unsigned long tiempoActual = millis(); // Obtener el tiempo actual
 
@@ -366,6 +405,7 @@ void ejecutarRiego(int valvula) {
   }
 }
 
+// Funcion para restar las pausas en la base de datos
 void restarPausa(int valvula) {
   HTTPClient http;
   String urlRestarPausa;
@@ -393,6 +433,7 @@ void restarPausa(int valvula) {
   http.end();
 }
 
+// Funcion para detener el riego forsozamente
 void detenerRiego(int valvula) {
   if (valvula == 1) {
     digitalWrite(pinValvula1, LOW);
@@ -415,6 +456,8 @@ void detenerRiego(int valvula) {
     Serial.println("Riego detenido para Válvula 2.");
   }
 }
+
+// Funcion para actualizar la duracion de las pausas a 0
 void actualizarDuracionPausa(int valvula) {
   HTTPClient http;
   String urlActualizar;
@@ -443,7 +486,7 @@ void actualizarDuracionPausa(int valvula) {
 }
 
 
-
+// Funcion para agregar las pausas que se restaron para el siguiente riego
 void agregarPausa(int valvula) {
   HTTPClient http;
   String urlAgregarPausa;
@@ -470,6 +513,8 @@ void agregarPausa(int valvula) {
 
   http.end();
 }
+
+// Funcion para agregar las duracionPausas que se restaron para el siguiente riego
 void agregarDuracionPausa(int valvula) {
   HTTPClient http;
   String urlAgregarDuracionPausa;
@@ -499,7 +544,7 @@ void agregarDuracionPausa(int valvula) {
 
 
 
-
+// Funcion para actualizar los estados de los riegos
 void actualizarEstadoRiego(int valvula) {
   HTTPClient http;
   String urlActualizar;
@@ -524,17 +569,20 @@ void actualizarEstadoRiego(int valvula) {
   http.end();
 }
 
+// Funcion para obtener los dias de la semana
 String obtenerDiaSemana(int dia) {
   String dias[] = {"Domingo", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado"};
   return dias[dia];
 }
 
+// Funcion para actualizar los formatos de las fechas
 String formatoFecha(int anio, int mes, int dia) {
   char buffer[11];
   snprintf(buffer, sizeof(buffer), "%04d-%02d-%02d", anio, mes, dia);
   return String(buffer);
 }
 
+// Funcion para actualizar los formatos de las horas
 String formatoHora(int hora, int minuto) {
   char buffer[6];
   snprintf(buffer, sizeof(buffer), "%02d:%02d", hora, minuto);
