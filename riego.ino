@@ -23,10 +23,15 @@ String urlRestarPausa2 = "https://apiriego.onrender.com/restarPausa/" + idValvul
 String urlDuracionPausa1 = "https://apiriego.onrender.com/duracionPausa/" + idValvula1;
 String urlDuracionPausa2 = "https://apiriego.onrender.com/duracionPausa/" + idValvula2;
 
+String urlAgregarPausa1 = "https://apiriego.onrender.com/pausasHis/" + idValvula1;
+String urlAgregarPausa2 = "https://apiriego.onrender.com/pausasHis/" + idValvula2;
+String urlAgregarDuracionPausa1 = "https://apiriego.onrender.com/duracionPausaHis/" + idValvula1;
+String urlAgregarDuracionPausa2 = "https://apiriego.onrender.com/duracionPausaHis/" + idValvula2;
 
 
-const int pinValvula1 = 23;
-const int pinValvula2 = 22;
+
+const int pinValvula1 = 27;
+const int pinValvula2 = 26;
 
 RTC_DS3231 rtc;
 
@@ -130,6 +135,8 @@ void loop() {
     } else {
       Serial.println("Hoy no hay riego programado para la Válvula 1.");
     }
+  }else{
+    detenerRiego(1);
   }
 
   if (estadoRiego2) {
@@ -140,6 +147,8 @@ void loop() {
     } else {
       Serial.println("Hoy no hay riego programado para la Válvula 2.");
     }
+  }else{
+    detenerRiego(2);
   }
 
   delay(5000);
@@ -294,6 +303,8 @@ void ejecutarRiego(int valvula) {
         tiempoAnterior1 = 0;
         tiempoPausa1 = 0;
         pausas1 = 0;
+        agregarPausa(1);
+        agregarDuracionPausa(1);
       }
     }
   }
@@ -347,6 +358,8 @@ void ejecutarRiego(int valvula) {
         tiempoAnterior2 = 0;
         tiempoPausa2 = 0;
         pausas2 = 0;
+        agregarPausa(2);
+        agregarDuracionPausa(2);
 
       }
     }
@@ -380,6 +393,28 @@ void restarPausa(int valvula) {
   http.end();
 }
 
+void detenerRiego(int valvula) {
+  if (valvula == 1) {
+    digitalWrite(pinValvula1, LOW);
+    isRiego1Activo = false;
+    // Reiniciar variables de control
+    actoRiego1 = 0;
+    tiempoAnterior1 = 0;
+    tiempoPausa1 = 0;
+    pausas1 = 0;
+    Serial.println("Riego detenido para Válvula 1.");
+  } 
+  if (valvula == 2) {
+    digitalWrite(pinValvula2, LOW);
+    isRiego2Activo = false;
+    // Reiniciar variables de control
+    actoRiego2 = 0;
+    tiempoAnterior2 = 0;
+    tiempoPausa2 = 0;
+    pausas2 = 0;
+    Serial.println("Riego detenido para Válvula 2.");
+  }
+}
 void actualizarDuracionPausa(int valvula) {
   HTTPClient http;
   String urlActualizar;
@@ -402,6 +437,61 @@ void actualizarDuracionPausa(int valvula) {
     Serial.println("Respuesta del servidor: " + http.getString());
   } else {
     Serial.println("Error al actualizar la duración de la pausa.");
+  }
+
+  http.end();
+}
+
+
+
+void agregarPausa(int valvula) {
+  HTTPClient http;
+  String urlAgregarPausa;
+
+  // Asignar la URL de acuerdo con la válvula
+  if (valvula == 1) {
+    urlAgregarPausa = urlAgregarPausa1;
+  } else if (valvula == 2) {
+    urlAgregarPausa = urlAgregarPausa2;
+  }
+
+  http.begin(urlAgregarPausa);
+  http.addHeader("Content-Type", "application/json");
+
+  // Realizar la solicitud PUT sin cuerpo, solo llamando a la API
+  int httpCode = http.PUT("");  // No se envía cuerpo en el PUT
+
+  if (httpCode > 0) {
+    Serial.println("Pausa agregada correctamente.");
+    Serial.println("Respuesta del servidor: " + http.getString());
+  } else {
+    Serial.println("Error al restar pausa.");
+  }
+
+  http.end();
+}
+void agregarDuracionPausa(int valvula) {
+  HTTPClient http;
+  String urlAgregarDuracionPausa;
+
+  // Asignar la URL de acuerdo con la válvula
+  if (valvula == 1) {
+    urlAgregarDuracionPausa = urlAgregarDuracionPausa1;
+  } else if (valvula == 2) {
+    urlAgregarDuracionPausa = urlAgregarDuracionPausa2;
+  }
+
+  http.begin(urlAgregarDuracionPausa);
+  http.addHeader("Content-Type", "application/json");
+
+  // Realizar la solicitud PUT sin cuerpo, solo llamando a la API
+  int httpCode = http.PUT("");  // No se envía cuerpo en el PUT
+
+  if (httpCode > 0) {
+    Serial.println("Duracion agregada correctamente.");
+    Serial.println("Respuesta del servidor: " + http.getString());
+  } else {
+    Serial.println("Error al restar pausa.");
   }
 
   http.end();
